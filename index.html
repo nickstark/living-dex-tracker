@@ -1,0 +1,907 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Living Dex Tracker</title>
+
+<!-- PWA -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="Living Dex">
+<meta name="theme-color" content="#101116">
+<link rel="manifest" id="manifest-placeholder">
+<link rel="apple-touch-icon" id="apple-touch-icon-placeholder">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Rubik:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:            #101116;
+    --panel:         #1a1c23;
+    --panel-raised:  #21232c;
+    --panel-line:    #2c2f3a;
+    --text:          #eef0f6;
+    --text-dim:      #9498a8;
+    --text-faint:    #676b7a;
+
+    --pokeball-red:  #e0393e;
+    --pokeball-red-dark: #a02428;
+    --screen-glow:   rgba(224,57,62,0.18);
+
+    --good:          #4fb477;
+    --warn:          #e0b23e;
+
+    /* per-game identities */
+    --swsh-a:  #2f6fee; --swsh-b:  #e63946;
+    --bdsp-a:  #9fc1ef; --bdsp-b:  #f2a6c9;
+    --pla-a:   #b98d4f; --pla-b:   #5f8a68;
+    --sv-a:    #e0393e; --sv-b:    #8f3fa0;
+    --plza-a:  #c86bf0; --plza-b:  #241a33;
+
+    --radius-lg: 20px;
+    --radius-md: 14px;
+    --radius-sm: 9px;
+
+    --font-display: 'Press Start 2P', monospace;
+    --font-body: 'Rubik', system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+  }
+
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; }
+  body{
+    background:
+      radial-gradient(1200px 700px at 15% -10%, rgba(224,57,62,0.10), transparent 60%),
+      radial-gradient(1000px 600px at 100% 10%, rgba(155,93,229,0.10), transparent 55%),
+      var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    line-height:1.5;
+    min-height:100vh;
+    padding: 28px 20px 60px;
+  }
+
+  a{ color:inherit; }
+  ::selection{ background: var(--pokeball-red); color:#fff; }
+
+  .wrap{ max-width: 1180px; margin: 0 auto; }
+
+  /* ---------- header ---------- */
+  header.top{
+    display:flex; align-items:center; justify-content:space-between; gap:16px;
+    flex-wrap:wrap;
+    margin-bottom: 28px;
+  }
+  .brand{ display:flex; align-items:center; gap:14px; }
+  .brand-ball{
+    width:34px; height:34px; border-radius:50%;
+    background: linear-gradient(var(--pokeball-red) 0 48%, #14151a 48% 52%, #f4f4f6 52% 100%);
+    border: 3px solid #14151a;
+    box-shadow: 0 0 0 2px #3a3d4a, 0 4px 14px rgba(0,0,0,0.4);
+    position:relative; flex-shrink:0;
+  }
+  .brand-ball::after{
+    content:''; position:absolute; inset:auto; top:50%; left:50%;
+    width:10px; height:10px; background:#1a1c23; border:2px solid #3a3d4a;
+    border-radius:50%; transform:translate(-50%,-50%);
+  }
+  .brand h1{
+    font-family: var(--font-display);
+    font-size: 15px;
+    margin:0;
+    letter-spacing:0.5px;
+    line-height:1.4;
+  }
+  .brand p{ margin:2px 0 0; color:var(--text-dim); font-size:13px; }
+
+  .sync-controls{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+  .sync-status{
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    color: var(--text-dim);
+    display:flex; align-items:center; gap:8px;
+  }
+  .sync-dot{
+    width:8px; height:8px; border-radius:50%; background:var(--good);
+    box-shadow:0 0 0 3px rgba(79,180,119,0.18);
+    flex-shrink:0;
+  }
+  .sync-dot.syncing{ background:var(--warn); box-shadow:0 0 0 3px rgba(224,178,62,0.2); animation:pulse 1.1s ease-in-out infinite; }
+  .sync-dot.err{ background:var(--pokeball-red); box-shadow:0 0 0 3px rgba(224,57,62,0.2); }
+  @keyframes pulse{ 0%,100%{ opacity:1; } 50%{ opacity:0.35; } }
+
+  button.refresh{
+    font-family: var(--font-body); font-weight:600; font-size:13.5px;
+    color:#fff; background: var(--pokeball-red);
+    border:none; border-radius: 999px; padding:9px 18px;
+    cursor:pointer; display:inline-flex; align-items:center; gap:8px;
+    transition: transform .12s ease, background .15s ease;
+  }
+  button.refresh:hover{ background: var(--pokeball-red-dark); }
+  button.refresh:active{ transform: scale(0.97); }
+  button.refresh:focus-visible{ outline:2px solid #fff; outline-offset:2px; }
+  button.refresh svg{ width:14px; height:14px; transition: transform .5s ease; }
+  button.refresh.spinning svg{ animation: spin 0.8s linear infinite; }
+  @keyframes spin{ to{ transform: rotate(360deg); } }
+
+  .stale-banner{
+    display:none;
+    background: rgba(224,178,62,0.12);
+    border:1px solid rgba(224,178,62,0.35);
+    color:#f0d290;
+    font-size:13px;
+    padding:10px 16px;
+    border-radius: var(--radius-sm);
+    margin-bottom:20px;
+  }
+  .stale-banner.show{ display:block; }
+  .error-banner{
+    display:none;
+    background: rgba(224,57,62,0.12);
+    border:1px solid rgba(224,57,62,0.35);
+    color:#f5b3b5;
+    font-size:13px;
+    padding:10px 16px;
+    border-radius: var(--radius-sm);
+    margin-bottom:20px;
+  }
+  .error-banner.show{ display:block; }
+
+  /* ---------- hero ---------- */
+  .hero{
+    background: linear-gradient(180deg, var(--panel-raised), var(--panel));
+    border:1px solid var(--panel-line);
+    border-radius: var(--radius-lg);
+    padding: 32px;
+    display:flex; align-items:center; gap:40px;
+    margin-bottom: 26px;
+    flex-wrap:wrap;
+    position:relative;
+    overflow:hidden;
+  }
+  .hero::before{
+    content:''; position:absolute; inset:0;
+    background: radial-gradient(400px 400px at 90% 20%, var(--screen-glow), transparent 70%);
+    pointer-events:none;
+  }
+  .ring-wrap{ position:relative; width:180px; height:180px; flex-shrink:0; }
+  .ring{
+    width:180px; height:180px; border-radius:50%;
+    background: conic-gradient(var(--pokeball-red) calc(var(--pct,0) * 1%), #2a2c36 0);
+    display:flex; align-items:center; justify-content:center;
+    transition: background 0.8s ease;
+  }
+  .ring-inner{
+    width:140px; height:140px; border-radius:50%;
+    background: var(--panel);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    box-shadow: inset 0 0 0 1px var(--panel-line);
+    padding: 0 10px;
+  }
+  .ring-inner .pct{
+    font-family: var(--font-display); font-size: 18px; color:#fff;
+    letter-spacing: -0.5px;
+    white-space: nowrap;
+  }
+  .ring-inner .pct-label{
+    font-size:11px; color:var(--text-dim); margin-top:8px; letter-spacing:0.4px; text-transform:uppercase;
+  }
+
+  .hero-stats{ display:flex; gap:34px; flex-wrap:wrap; flex:1; z-index:1; }
+  .hero-stat .num{ font-family: var(--font-mono); font-weight:700; font-size:30px; }
+  .hero-stat .lab{ font-size:12.5px; color:var(--text-dim); margin-top:4px; }
+  .hero-stat.have .num{ color: var(--good); }
+  .hero-stat.remaining .num{ color: var(--warn); }
+
+  /* ---------- section titles ---------- */
+  .section-title{
+    font-family: var(--font-display);
+    font-size:12px;
+    color: var(--text-dim);
+    letter-spacing: 0.5px;
+    margin: 34px 0 14px;
+    display:flex; align-items:center; gap:10px;
+  }
+  .section-title::after{
+    content:''; flex:1; height:1px; background: var(--panel-line);
+  }
+
+  /* ---------- game shelf ---------- */
+  .shelf{
+    display:grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap:14px;
+  }
+  .cart{
+    background: var(--panel);
+    border:1px solid var(--panel-line);
+    border-radius: var(--radius-md);
+    padding:18px;
+    position:relative;
+    overflow:hidden;
+    isolation:isolate;
+  }
+  .cart::before{
+    content:'';
+    position:absolute; inset:0; z-index:-1;
+    background: linear-gradient(135deg, var(--ga,#333), var(--gb,#222));
+    opacity:0.16;
+  }
+  .cart .top-edge{
+    position:absolute; top:0; left:0; right:0; height:5px; z-index:-1;
+    background: linear-gradient(90deg, var(--ga,#333), var(--gb,#222));
+  }
+  .cart h3{
+    margin:6px 0 2px; font-size:16px; font-weight:700;
+  }
+  .cart .full{ font-size:11.5px; color:var(--text-dim); margin-bottom:14px; min-height: 30px; }
+  .cart .bar-track{
+    height:10px; border-radius:999px; background:#2a2c36; overflow:hidden; margin-bottom:10px;
+  }
+  .cart .bar-fill{
+    height:100%; border-radius:999px;
+    background: linear-gradient(90deg, var(--ga,#888), var(--gb,#666));
+    width:0%; transition: width 0.8s ease;
+  }
+  .cart .cart-nums{
+    display:flex; justify-content:space-between; align-items:baseline;
+    font-family: var(--font-mono);
+  }
+  .cart .cart-pct{ font-size:20px; font-weight:700; }
+  .cart .cart-frac{ font-size:12px; color:var(--text-dim); }
+  .cart .cart-remaining{ font-size:11.5px; color:var(--text-faint); margin-top:8px; }
+  .cart.complete{ box-shadow: 0 0 0 1px var(--good) inset; }
+  .cart.complete .cart-pct{ color: var(--good); }
+
+  /* ---------- bento ---------- */
+  .bento{
+    display:grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap:14px;
+  }
+  .tile{
+    background: var(--panel);
+    border:1px solid var(--panel-line);
+    border-radius: var(--radius-md);
+    padding:18px;
+  }
+  .tile .tile-label{
+    font-size:11.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.4px;
+    margin-bottom:8px;
+  }
+  .tile .tile-value{
+    font-family: var(--font-mono); font-weight:700; font-size:24px;
+  }
+  .tile .tile-sub{ font-size:12.5px; color:var(--text-faint); margin-top:6px; }
+
+  .tile.wide{ grid-column: span 2; }
+  @media (max-width:700px){ .tile.wide{ grid-column: span 1; } }
+
+  .gen-rows{ display:flex; flex-direction:column; gap:8px; margin-top:4px; }
+  .gen-row{ display:flex; align-items:center; gap:10px; }
+  .gen-row .g-lab{ width:52px; font-family:var(--font-mono); font-size:11.5px; color:var(--text-dim); flex-shrink:0; }
+  .gen-row .g-track{ display:block; flex:1; height:8px; border-radius:999px; background:#2a2c36; overflow:hidden; }
+  .gen-row .g-fill{ display:block; height:100%; width:0; background: linear-gradient(90deg, var(--pokeball-red), #f2a6a8); border-radius:999px; transition:width .8s ease; }
+  .gen-row .g-pct{ width:44px; text-align:right; font-family:var(--font-mono); font-size:11.5px; color:var(--text-dim); }
+
+  .status-list{ display:flex; flex-direction:column; gap:9px; margin-top:2px; }
+  .status-row{ display:flex; justify-content:space-between; font-size:13px; }
+  .status-row .s-lab{ color: var(--text-dim); }
+  .status-row .s-val{ font-family:var(--font-mono); font-weight:600; }
+
+  .exclusive-list{ display:flex; flex-direction:column; gap:8px; margin-top:2px; }
+  .exclusive-row{ display:flex; justify-content:space-between; align-items:center; font-size:13px; }
+  .exclusive-row .chip{
+    display:inline-flex; align-items:center; gap:6px; font-size:12.5px; color:var(--text-dim);
+  }
+  .exclusive-row .dot{ width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+  .exclusive-row .e-val{ font-family:var(--font-mono); font-weight:600; }
+
+  footer{
+    margin-top:40px; padding-top:20px; border-top:1px solid var(--panel-line);
+    color: var(--text-faint); font-size:12px; display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap;
+  }
+  footer a{ color:var(--text-dim); text-decoration:underline; }
+
+  .skeleton-note{ color:var(--text-dim); font-size:13.5px; padding: 6px 0 0; }
+
+  @media (prefers-reduced-motion: reduce){
+    *{ transition:none !important; animation:none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div class="brand">
+      <div class="brand-ball"></div>
+      <div>
+        <h1>LIVING DEX TRACKER</h1>
+        <p>Pokémon HOME progress, pulled straight from your sheet</p>
+      </div>
+    </div>
+    <div class="sync-controls">
+      <div class="sync-status">
+        <span class="sync-dot" id="syncDot"></span>
+        <span id="syncText">Loading…</span>
+      </div>
+      <button class="refresh" id="refreshBtn" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>
+        Refresh
+      </button>
+    </div>
+  </header>
+
+  <div class="stale-banner" id="staleBanner">Showing data from your last sync — a fresh copy is loading in the background.</div>
+  <div class="error-banner" id="errorBanner"></div>
+
+  <section class="hero">
+    <div class="ring-wrap">
+      <div class="ring" id="heroRing">
+        <div class="ring-inner">
+          <div class="pct" id="heroPct">–</div>
+          <div class="pct-label">Complete</div>
+        </div>
+      </div>
+    </div>
+    <div class="hero-stats">
+      <div class="hero-stat have">
+        <div class="num" id="statHave">–</div>
+        <div class="lab">Forms filled</div>
+      </div>
+      <div class="hero-stat remaining">
+        <div class="num" id="statRemaining">–</div>
+        <div class="lab">Still to fill</div>
+      </div>
+      <div class="hero-stat">
+        <div class="num" id="statTotal">–</div>
+        <div class="lab">Total forms tracked</div>
+      </div>
+      <div class="hero-stat">
+        <div class="num" id="statSpecies">–</div>
+        <div class="lab">Unique species / units</div>
+      </div>
+    </div>
+  </section>
+
+  <div class="section-title">By game</div>
+  <div class="shelf" id="gameShelf"></div>
+
+  <div class="section-title">More about your dex</div>
+  <div class="bento" id="bento"></div>
+
+  <footer>
+    <span>Data source: your published Google Sheet tab (CSV export) · cached locally in IndexedDB, auto-refreshed hourly</span>
+    <span id="footerSync"></span>
+  </footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ============================================================
+     CONFIG — hardcoded against the user's actual sheet structure
+     ============================================================ */
+  const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTXwTwoFLC2Nu7xDxZlC9JlYbvDZ4FQl-WOSAAjhb6WdBn-uwpaHqWN09DrN5tjXrutn5wteQ5kwxIu/pub?gid=376794368&single=true&output=csv";
+  const CACHE_MAX_AGE_MS = 60 * 60 * 1000; // 1 hour
+
+  // Column indices, 0-based, matching the confirmed header row:
+  // 0:(row#) 1:Page 2:Box 3:No 4:Row 5:Slot 6:Sprite 7:Name 8:Dex
+  // 9:Complete-status 10:filter 11:Form name 12:Type1 13:Type2
+  // 14:-Form 15:-Gender 16:SwSh 17:BDSP 18:PLA 19:SV 20:PLZA 21:Keyword
+  const COL = {
+    no: 3, name: 7, dex: 8, status: 9, formName: 11,
+    formSuffix: 14, genderSuffix: 15,
+    swsh: 16, bdsp: 17, pla: 18, sv: 19, plza: 20, keyword: 21
+  };
+
+  const GAMES = [
+    { key:'swsh', label:'Sword & Shield',                short:'SwSh', col:COL.swsh, a:'var(--swsh-a)', b:'var(--swsh-b)' },
+    { key:'bdsp', label:'Brilliant Diamond & Shining Pearl', short:'BDSP', col:COL.bdsp, a:'var(--bdsp-a)', b:'var(--bdsp-b)' },
+    { key:'pla',  label:'Legends: Arceus',               short:'PLA',  col:COL.pla,  a:'var(--pla-a)',  b:'var(--pla-b)' },
+    { key:'sv',   label:'Scarlet & Violet',              short:'SV',   col:COL.sv,   a:'var(--sv-a)',   b:'var(--sv-b)' },
+    { key:'plza', label:'Legends: Z-A',                  short:'PLZA', col:COL.plza, a:'var(--plza-a)', b:'var(--plza-b)' },
+  ];
+
+  // National dex ranges per generation, for the "by generation" bonus chart
+  const GEN_RANGES = [
+    [1,1,151],[2,152,251],[3,252,386],[4,387,493],[5,494,649],
+    [6,650,721],[7,722,809],[8,810,905],[9,906,1025]
+  ];
+
+  // Status code -> human label (per the user's own convention).
+  // ONLY '0' counts as acquired; everything else is "not acquired".
+  const STATUS_LABELS = {
+    '0':    "Have it",
+    '1':    "Don't have it",
+    'lgpe': "Have in Let's Go Pikachu/Eevee (want to replace)",
+    'n ot': "Have, not original trainer (want to replace)",
+    'go':   "Have via GO transfer",
+    'x':    "Have earlier evolution stage",
+    'sv':   "Caught in SV, pending Home transfer",
+    '':     "Unmarked"
+  };
+
+  /* ============================================================
+     IndexedDB cache
+     ============================================================ */
+  const DB_NAME = 'living-dex-tracker';
+  const STORE = 'cache';
+
+  function openDB(){
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(DB_NAME, 1);
+      req.onupgradeneeded = () => {
+        req.result.createObjectStore(STORE);
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  async function idbGet(key){
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE, 'readonly');
+      const req = tx.objectStore(STORE).get(key);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  async function idbSet(key, value){
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE, 'readwrite');
+      tx.objectStore(STORE).put(value, key);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  /* ============================================================
+     CSV parsing (handles quoted fields with embedded commas)
+     ============================================================ */
+  function parseCSV(text){
+    const rows = [];
+    let row = [], field = '', inQuotes = false;
+    for (let i = 0; i < text.length; i++){
+      const c = text[i], next = text[i+1];
+      if (inQuotes){
+        if (c === '"' && next === '"'){ field += '"'; i++; }
+        else if (c === '"'){ inQuotes = false; }
+        else { field += c; }
+      } else {
+        if (c === '"'){ inQuotes = true; }
+        else if (c === ','){ row.push(field); field=''; }
+        else if (c === '\r'){ /* skip */ }
+        else if (c === '\n'){ row.push(field); rows.push(row); row=[]; field=''; }
+        else { field += c; }
+      }
+    }
+    if (field.length || row.length){ row.push(field); rows.push(row); }
+    return rows;
+  }
+
+  /* ============================================================
+     Stats computation
+     ============================================================ */
+  function computeStats(csvText){
+    const allRows = parseCSV(csvText);
+    const dataRows = allRows.slice(1).filter(r => r[COL.no] && r[COL.no].trim() !== '' && r[COL.name] && r[COL.name].trim() !== '');
+
+    let totalForms = 0, haveForms = 0;
+    const speciesSet = new Set();
+    const statusCounts = {};
+    const perGame = {};
+    GAMES.forEach(g => perGame[g.key] = { total:0, have:0 });
+
+    const genBuckets = {};
+    GEN_RANGES.forEach(([g]) => genBuckets[g] = { total:0, have:0 });
+
+    let regionalTotal = 0, regionalHave = 0;
+    let genderTotal = 0, genderHave = 0;
+    let notInAnyTrackedGame = 0;
+    const gameExclusiveCounts = {}; // key -> count of forms ONLY in that one game
+    GAMES.forEach(g => gameExclusiveCounts[g.key] = 0);
+
+    dataRows.forEach(r => {
+      totalForms++;
+      const dexStr = (r[COL.dex] || '').trim();
+      if (dexStr) speciesSet.add(dexStr);
+
+      const rawStatus = (r[COL.status] || '').trim();
+      const statusKey = rawStatus.toLowerCase();
+      const have = statusKey === '0';
+      if (have) haveForms++;
+
+      const label = STATUS_LABELS[statusKey] || ('Other status: "' + rawStatus + '"');
+      statusCounts[label] = (statusCounts[label] || 0) + 1;
+
+      // per game
+      let gamesPresent = 0, onlyGameKey = null;
+      GAMES.forEach(g => {
+        const cell = (r[g.col] || '').trim();
+        if (cell !== ''){
+          perGame[g.key].total++;
+          if (have) perGame[g.key].have++;
+          gamesPresent++;
+          onlyGameKey = g.key;
+        }
+      });
+      if (gamesPresent === 0) notInAnyTrackedGame++;
+      if (gamesPresent === 1) gameExclusiveCounts[onlyGameKey]++;
+
+      // generation
+      const dexNum = parseInt(dexStr, 10);
+      if (!isNaN(dexNum)){
+        for (const [g, lo, hi] of GEN_RANGES){
+          if (dexNum >= lo && dexNum <= hi){
+            genBuckets[g].total++;
+            if (have) genBuckets[g].have++;
+            break;
+          }
+        }
+      }
+
+      // regional / alt forms
+      const formName = (r[COL.formName] || '').trim();
+      if (formName !== ''){
+        regionalTotal++;
+        if (have) regionalHave++;
+      }
+
+      // gender diffs
+      const genderSuffix = (r[COL.genderSuffix] || '').trim();
+      if (genderSuffix !== ''){
+        genderTotal++;
+        if (have) genderHave++;
+      }
+    });
+
+    const perGameArr = GAMES.map(g => {
+      const d = perGame[g.key];
+      const pct = d.total ? (d.have / d.total * 100) : 0;
+      return { ...g, total:d.total, have:d.have, remaining:d.total-d.have, pct };
+    });
+
+    const trackedGames = perGameArr.filter(g => g.total > 0);
+    const bestGame = trackedGames.length ? trackedGames.reduce((a,b) => b.pct > a.pct ? b : a) : null;
+    const worstGame = trackedGames.length ? trackedGames.reduce((a,b) => b.pct < a.pct ? b : a) : null;
+
+    const genArr = GEN_RANGES.map(([g]) => {
+      const d = genBuckets[g];
+      return { gen:g, total:d.total, have:d.have, pct: d.total ? (d.have/d.total*100) : 0 };
+    }).filter(g => g.total > 0);
+
+    return {
+      totalForms, haveForms,
+      remainingForms: totalForms - haveForms,
+      overallPct: totalForms ? (haveForms/totalForms*100) : 0,
+      uniqueSpecies: speciesSet.size,
+      statusCounts,
+      perGame: perGameArr,
+      bestGame, worstGame,
+      genArr,
+      regionalTotal, regionalHave,
+      genderTotal, genderHave,
+      notInAnyTrackedGame,
+      gameExclusiveCounts
+    };
+  }
+
+  /* ============================================================
+     Rendering
+     ============================================================ */
+  function fmtPct(n){ return (Math.round(n*10)/10).toFixed(1) + '%'; }
+  function fmtNum(n){ return n.toLocaleString(); }
+
+  function timeAgo(ts){
+    const s = Math.floor((Date.now() - ts)/1000);
+    if (s < 60) return 'just now';
+    const m = Math.floor(s/60);
+    if (m < 60) return m + ' minute' + (m===1?'':'s') + ' ago';
+    const h = Math.floor(m/60);
+    if (h < 24) return h + ' hour' + (h===1?'':'s') + ' ago';
+    const d = Math.floor(h/24);
+    return d + ' day' + (d===1?'':'s') + ' ago';
+  }
+
+  function render(stats, timestamp){
+    document.getElementById('heroRing').style.setProperty('--pct', stats.overallPct.toFixed(2));
+    document.getElementById('heroPct').textContent = fmtPct(stats.overallPct);
+    document.getElementById('statHave').textContent = fmtNum(stats.haveForms);
+    document.getElementById('statRemaining').textContent = fmtNum(stats.remainingForms);
+    document.getElementById('statTotal').textContent = fmtNum(stats.totalForms);
+    document.getElementById('statSpecies').textContent = fmtNum(stats.uniqueSpecies);
+
+    // game shelf
+    const shelf = document.getElementById('gameShelf');
+    shelf.innerHTML = stats.perGame.map(g => `
+      <div class="cart ${g.remaining===0 && g.total>0 ? 'complete':''}" style="--ga:${g.a};--gb:${g.b}">
+        <div class="top-edge"></div>
+        <h3>${g.short}</h3>
+        <div class="full">${g.label}</div>
+        <div class="bar-track"><div class="bar-fill" style="width:${g.total? g.pct.toFixed(2):0}%"></div></div>
+        <div class="cart-nums">
+          <span class="cart-pct">${g.total ? fmtPct(g.pct) : '—'}</span>
+          <span class="cart-frac">${fmtNum(g.have)} / ${fmtNum(g.total)}</span>
+        </div>
+        <div class="cart-remaining">${g.total ? fmtNum(g.remaining) + ' left to fill' : 'Not tracked in this sheet'}</div>
+      </div>
+    `).join('');
+
+    // bento
+    const bento = document.getElementById('bento');
+    const tiles = [];
+
+    if (stats.bestGame && stats.worstGame){
+      tiles.push(`
+        <div class="tile">
+          <div class="tile-label">Furthest along</div>
+          <div class="tile-value">${stats.bestGame.short}</div>
+          <div class="tile-sub">${fmtPct(stats.bestGame.pct)} complete</div>
+        </div>
+        <div class="tile">
+          <div class="tile-label">Needs the most work</div>
+          <div class="tile-value">${stats.worstGame.short}</div>
+          <div class="tile-sub">${fmtNum(stats.worstGame.remaining)} forms left · ${fmtPct(stats.worstGame.pct)} done</div>
+        </div>
+      `);
+    }
+
+    tiles.push(`
+      <div class="tile wide">
+        <div class="tile-label">Completion by generation</div>
+        <div class="gen-rows">
+          ${stats.genArr.map(g => `
+            <div class="gen-row">
+              <span class="g-lab">Gen ${g.gen}</span>
+              <span class="g-track"><span class="g-fill" style="width:${g.pct.toFixed(2)}%"></span></span>
+              <span class="g-pct">${fmtPct(g.pct)}</span>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `);
+
+    const statusEntries = Object.entries(stats.statusCounts).sort((a,b) => b[1]-a[1]);
+    tiles.push(`
+      <div class="tile">
+        <div class="tile-label">Status breakdown</div>
+        <div class="status-list">
+          ${statusEntries.map(([label,count]) => `
+            <div class="status-row"><span class="s-lab">${label}</span><span class="s-val">${fmtNum(count)}</span></div>
+          `).join('')}
+        </div>
+      </div>
+    `);
+
+    const exBits = GAMES.map(g => ({ ...g, count: stats.gameExclusiveCounts[g.key] })).filter(g => g.count > 0);
+    tiles.push(`
+      <div class="tile">
+        <div class="tile-label">Game-exclusive forms</div>
+        <div class="tile-sub" style="margin-bottom:10px;">Only appear in one of your five tracked dexes</div>
+        <div class="exclusive-list">
+          ${exBits.map(g => `
+            <div class="exclusive-row">
+              <span class="chip"><span class="dot" style="background:${g.a}"></span>${g.short}</span>
+              <span class="e-val">${fmtNum(g.count)}</span>
+            </div>
+          `).join('')}
+          ${stats.notInAnyTrackedGame ? `
+            <div class="exclusive-row">
+              <span class="chip"><span class="dot" style="background:#555"></span>Not in any of the 5</span>
+              <span class="e-val">${fmtNum(stats.notInAnyTrackedGame)}</span>
+            </div>` : ''}
+        </div>
+      </div>
+    `);
+
+    tiles.push(`
+      <div class="tile">
+        <div class="tile-label">Regional &amp; alt forms</div>
+        <div class="tile-value">${fmtNum(stats.regionalHave)} / ${fmtNum(stats.regionalTotal)}</div>
+        <div class="tile-sub">${stats.regionalTotal ? fmtPct(stats.regionalHave/stats.regionalTotal*100) + ' filled' : 'None tracked'}</div>
+      </div>
+    `);
+
+    tiles.push(`
+      <div class="tile">
+        <div class="tile-label">Gender-difference forms</div>
+        <div class="tile-value">${fmtNum(stats.genderHave)} / ${fmtNum(stats.genderTotal)}</div>
+        <div class="tile-sub">${stats.genderTotal ? fmtPct(stats.genderHave/stats.genderTotal*100) + ' filled' : 'None tracked'}</div>
+      </div>
+    `);
+
+    bento.innerHTML = tiles.join('');
+
+    document.getElementById('footerSync').textContent = 'Last synced ' + new Date(timestamp).toLocaleString();
+  }
+
+  /* ============================================================
+     Sync status UI
+     ============================================================ */
+  const syncDot = document.getElementById('syncDot');
+  const syncText = document.getElementById('syncText');
+  const refreshBtn = document.getElementById('refreshBtn');
+  const staleBanner = document.getElementById('staleBanner');
+  const errorBanner = document.getElementById('errorBanner');
+
+  function setSyncing(isSyncing){
+    refreshBtn.classList.toggle('spinning', isSyncing);
+    refreshBtn.disabled = isSyncing;
+    syncDot.classList.toggle('syncing', isSyncing);
+    if (isSyncing) syncText.textContent = 'Syncing…';
+  }
+
+  function setSyncedLabel(ts){
+    syncDot.classList.remove('syncing','err');
+    syncText.textContent = 'Synced ' + timeAgo(ts);
+  }
+
+  function setError(msg){
+    syncDot.classList.remove('syncing');
+    syncDot.classList.add('err');
+    errorBanner.textContent = msg;
+    errorBanner.classList.add('show');
+  }
+
+  function clearError(){
+    errorBanner.classList.remove('show');
+    syncDot.classList.remove('err');
+  }
+
+  /* ============================================================
+     Fetch + cache flow
+     ============================================================ */
+  async function fetchFreshData(){
+    setSyncing(true);
+    try{
+      const res = await fetch(CSV_URL, { cache: 'no-store' });
+      if (!res.ok) throw new Error('Sheet fetch failed (HTTP ' + res.status + ')');
+      const text = await res.text();
+      if (!text || text.indexOf('Dex') === -1) throw new Error('Unexpected sheet format — check the CSV publish link is still valid.');
+      const timestamp = Date.now();
+      await idbSet('sheetData', { csv: text, timestamp });
+      const stats = computeStats(text);
+      render(stats, timestamp);
+      clearError();
+      staleBanner.classList.remove('show');
+      setSyncedLabel(timestamp);
+    } catch(err){
+      console.error(err);
+      let msg = 'Couldn\u2019t refresh your dex data: ' + err.message;
+      if (location.protocol === 'file:'){
+        msg = 'Couldn\u2019t refresh: this page is open as a local file (file://), and browsers block requests to Google Sheets from local files. Serve this file over http:// instead \u2014 e.g. run "python3 -m http.server" in this folder and open http://localhost:8000/living-dex-tracker.html.';
+      }
+      setError(msg);
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  async function init(){
+    let cached = null;
+    try{ cached = await idbGet('sheetData'); } catch(e){ console.warn('IndexedDB unavailable', e); }
+
+    if (cached){
+      try{
+        const stats = computeStats(cached.csv);
+        render(stats, cached.timestamp);
+        setSyncedLabel(cached.timestamp);
+      } catch(e){
+        console.error('Failed to parse cached data', e);
+      }
+
+      const age = Date.now() - cached.timestamp;
+      if (age > CACHE_MAX_AGE_MS){
+        staleBanner.classList.add('show');
+        fetchFreshData();
+      }
+    } else {
+      syncText.textContent = 'Fetching your dex for the first time…';
+      await fetchFreshData();
+    }
+  }
+
+  refreshBtn.addEventListener('click', () => {
+    staleBanner.classList.remove('show');
+    fetchFreshData();
+  });
+
+  init();
+})();
+
+// ─── PWA: inject manifest, icon, and service worker ───────────────────────────
+(function() {
+  // Icon: reuses the same Poké Ball motif as the header brand mark —
+  // dark rounded-square backdrop, red/white ball, black band + button.
+  const iconSVG =
+    "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E" +
+    "%3Crect width='512' height='512' rx='96' fill='%23101116'/%3E" +
+    "%3CclipPath id='t'%3E%3Crect x='0' y='0' width='512' height='256'/%3E%3C/clipPath%3E" +
+    "%3CclipPath id='b'%3E%3Crect x='0' y='256' width='512' height='256'/%3E%3C/clipPath%3E" +
+    "%3Ccircle cx='256' cy='256' r='168' fill='%23e0393e' clip-path='url(%23t)'/%3E" +
+    "%3Ccircle cx='256' cy='256' r='168' fill='%23f4f4f6' clip-path='url(%23b)'/%3E" +
+    "%3Ccircle cx='256' cy='256' r='168' fill='none' stroke='%2314151a' stroke-width='16'/%3E" +
+    "%3Crect x='84' y='241' width='344' height='30' fill='%2314151a'/%3E" +
+    "%3Ccircle cx='256' cy='256' r='48' fill='%2314151a'/%3E" +
+    "%3Ccircle cx='256' cy='256' r='32' fill='%23f4f4f6'/%3E" +
+    "%3Ccircle cx='256' cy='256' r='32' fill='none' stroke='%2314151a' stroke-width='10'/%3E" +
+    "%3C/svg%3E";
+
+  document.getElementById('apple-touch-icon-placeholder').setAttribute('href', iconSVG);
+
+  // Inline manifest as a blob so it works from a single HTML file
+  const manifest = {
+    name: 'Living Dex Tracker',
+    short_name: 'Living Dex',
+    start_url: './',
+    display: 'standalone',
+    background_color: '#101116',
+    theme_color: '#101116',
+    icons: [
+      { src: iconSVG, sizes: '512x512', type: 'image/svg+xml', purpose: 'any maskable' }
+    ]
+  };
+  const manifestBlob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
+  const manifestUrl = URL.createObjectURL(manifestBlob);
+  document.getElementById('manifest-placeholder').setAttribute('href', manifestUrl);
+
+  // Inline service worker as a blob for single-file PWA
+  const swCode = `
+    const CACHE = 'living-dex-tracker-v1';
+    const FONTS = [
+      'https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Rubik:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap'
+    ];
+
+    self.addEventListener('install', e => {
+      e.waitUntil(
+        caches.open(CACHE).then(c => c.addAll(FONTS).catch(() => {}))
+      );
+      self.skipWaiting();
+    });
+
+    self.addEventListener('activate', e => {
+      e.waitUntil(
+        caches.keys().then(keys =>
+          Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
+        )
+      );
+      self.clients.claim();
+    });
+
+    self.addEventListener('fetch', e => {
+      // Cache-first for font requests, network-first (with cache fallback,
+      // e.g. for the sheet CSV) for everything else
+      if (e.request.url.includes('fonts.g')) {
+        e.respondWith(
+          caches.match(e.request).then(r => r || fetch(e.request).then(res => {
+            const clone = res.clone();
+            caches.open(CACHE).then(c => c.put(e.request, clone));
+            return res;
+          }))
+        );
+      } else {
+        e.respondWith(
+          fetch(e.request).catch(() => caches.match(e.request))
+        );
+      }
+    });
+  `;
+  const swBlob = new Blob([swCode], { type: 'application/javascript' });
+  const swUrl = URL.createObjectURL(swBlob);
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register(swUrl, { scope: './' }).catch(() => {
+      // SW registration may fail in some environments; app still works
+    });
+  }
+})();
+</script>
+</body>
+</html>
